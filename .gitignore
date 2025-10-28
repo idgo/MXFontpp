@@ -3,3 +3,4 @@ others/*
 *.png
 *.zip 
 result/*
+__pycache__/*
