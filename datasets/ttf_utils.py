@@ -35,7 +35,7 @@ def read_font(fontfile, size=150):
     return font
 
 
-def render(font, char, size=(128, 128), pad=20):
+def render(font, char, size=(128, 128), pad=0):
     width, height = font.getsize(char)
     max_size = max(width, height)
 
