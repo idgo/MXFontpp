@@ -130,7 +130,8 @@ def train(args, cfg, ddp_gpu=-1):
                                           use_ddp=cfg.use_ddp,
                                           batch_size=cfg.batch_size,
                                           num_workers=cfg.n_workers,
-                                          shuffle=True)
+                                          shuffle=True,
+                                          pin_memory=True)
 
     if not trn_dset:
         logger.error("Empty training dataset. Check your data path and configs.")
@@ -140,7 +141,8 @@ def train(args, cfg, ddp_gpu=-1):
                                             val_transform,
                                             batch_size=cfg.batch_size,
                                             num_workers=cfg.n_workers,
-                                            shuffle=False)
+                                            shuffle=False,
+                                            pin_memory=True)
 
     logger.info("Build model ...")
     # generator
