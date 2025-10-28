@@ -125,6 +125,10 @@ def train(args, cfg, ddp_gpu=-1):
                                           num_workers=cfg.n_workers,
                                           shuffle=True)
 
+    if not trn_dset:
+        logger.error("Empty training dataset. Check your data path and configs.")
+        return
+
     test_dset, test_loader = get_val_loader(cfg.dset.val,
                                             val_transform,
                                             batch_size=cfg.batch_size,

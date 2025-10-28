@@ -57,7 +57,7 @@ class TTFTrainDataset(Dataset):
         self.data_list = [(key, char) for key, chars in self.key_char_dict.items() for char in chars]
         # import ipdb;ipdb.set_trace()
         self.keys = sorted(self.key_font_dict)
-        self.chars = sorted(set.union(*map(set, self.key_char_dict.values())))
+        self.chars = sorted(set.union(set(), *map(set, self.key_char_dict.values())))
 
         self.transform = transform
 

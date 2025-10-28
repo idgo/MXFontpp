@@ -14,6 +14,7 @@ from .hsic import RbfHSIC
 
 import utils
 from itertools import combinations
+from tqdm import tqdm
 
 
 class FactTrainer(BaseTrainer):
@@ -52,7 +53,10 @@ class FactTrainer(BaseTrainer):
 
         self.logger.info("Start training ...")
 
-        for batch in cyclize(loader):
+        
+        pbar = tqdm(cyclize(loader), total=max_step, initial=st_step)
+        for batch in pbar:
+        #for batch in cyclize(loader):
             epoch = self.step // len(loader)
             if self.cfg.use_ddp and (self.step % len(loader)) == 0:
                 loader.sampler.set_epoch(epoch)
@@ -198,7 +202,7 @@ class FactTrainer(BaseTrainer):
                     self.log(losses, discs, stats)
                     self.logger.debug("GPU Memory usage: max mem_alloc = %.1fM / %.1fM",
                                       torch.cuda.max_memory_allocated() / 1000 / 1000,
-                                      torch.cuda.max_memory_cached() / 1000 / 1000)
+                                      torch.cuda.max_memory_reserved() / 1000 / 1000)
                     losses.resets()
                     discs.resets()
                     stats.resets()
@@ -284,7 +288,7 @@ class FactTrainer(BaseTrainer):
             cids, eids = expert_assign(T_probs)
             _max_ids = torch.where(_b_comp_id)[0][cids]
             ac_loss_c += F.cross_entropy(_logit[eids], _max_ids)
-            acc = T_probs[cids, eids].sum() / n_experts
+            acc = T_probs[cids.cpu(), eids.cpu()].sum() / n_experts
             accs += acc
 
         ac_loss_c /= B

@@ -29,10 +29,10 @@ def weights_init(init_type='default'):
     return init_fun
 
 
-def spectral_norm(module):
-    """ init & apply spectral norm """
-    nn.init.xavier_uniform_(module.weight, 2 ** 0.5)
-    if hasattr(module, 'bias') and module.bias is not None:
-        module.bias.data.zero_()
-
+def spectral_norm(module, name='weight'):
+    """
+    Apply spectral normalization to a parameter in the given module.
+    """
+    if name not in module._parameters or module._parameters[name].numel() == 0:
+        return module
     return nn.utils.spectral_norm(module)
