@@ -41,7 +41,14 @@ def setup_args_and_config():
     if cfg.use_ddp:
         cfg.n_workers = 0
 
-    cfg.work_dir = Path(cfg.work_dir)
+    base_dir = Path(cfg.work_dir)
+    count = 1
+    while True:
+        run_dir = base_dir / f"run_{count}"
+        if not run_dir.exists():
+            cfg.work_dir = run_dir
+            break
+        count += 1
     (cfg.work_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
 
     return args, cfg
