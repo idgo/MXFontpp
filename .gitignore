@@ -5,3 +5,6 @@ others/*
 result/*
 **/__pycache__/*
 *.log
+data/*
+.cursor/*
+.vscode/*

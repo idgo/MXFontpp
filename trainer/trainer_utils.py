@@ -43,7 +43,7 @@ def overwrite_weight(model, pre_weight):
 
 
 def load_checkpoint(path, gen, disc, aux_clf, g_optim, d_optim, ac_optim, force_overwrite=False):
-    ckpt = torch.load(path)
+    ckpt = torch.load(path, weights_only=False)
 
     if force_overwrite:
         overwrite_weight(gen, ckpt['generator'])

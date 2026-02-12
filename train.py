@@ -42,13 +42,37 @@ def setup_args_and_config():
         cfg.n_workers = 0
 
     base_dir = Path(cfg.work_dir)
-    count = 1
-    while True:
+    
+    # If resuming from a checkpoint, reuse the same run directory
+    if cfg.get('resume'):
+        resume_path = Path(cfg.resume)
+        # Extract the run directory from the resume path
+        # e.g., result/run_44/checkpoints/002200.pth -> result/run_44
+        for parent in resume_path.parents:
+            if parent.name.startswith('run_'):
+                run_dir = parent
+                break
+        else:
+            # If we can't find a run_* directory in the path, fall back to creating a new one
+            raise ValueError(f"Cannot determine run directory from resume path: {cfg.resume}")
+    else:
+        # Find the latest run number and create a new one
+        existing_runs = [d for d in base_dir.glob("run_*") if d.is_dir()]
+        if existing_runs:
+            run_numbers = []
+            for d in existing_runs:
+                try:
+                    run_num = int(d.name.split("_")[1])
+                    run_numbers.append(run_num)
+                except (ValueError, IndexError):
+                    pass
+            count = max(run_numbers) + 1 if run_numbers else 1
+        else:
+            count = 1
+        
         run_dir = base_dir / f"run_{count}"
-        if not run_dir.exists():
-            cfg.work_dir = run_dir
-            break
-        count += 1
+    
+    cfg.work_dir = run_dir
     (cfg.work_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
 
     return args, cfg
