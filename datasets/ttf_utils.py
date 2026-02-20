@@ -9,6 +9,17 @@ from PIL import Image, ImageFont, ImageDraw
 import numpy as np
 
 
+def get_supported_chars(fontfile):
+    """Extract the set of characters supported by the font."""
+    try:
+        font = TTFont(fontfile)
+        cmap = font.getBestCmap()
+        if cmap:
+            return [chr(y) for y in set(cmap.keys())]
+    except Exception as e:
+        print(f"Error processing {fontfile}: {e}")
+    return []
+
 def get_defined_chars(fontfile):
     ttf = TTFont(fontfile)
     chars = [chr(y) for y in ttf["cmap"].tables[0].cmap.keys()]
@@ -17,7 +28,7 @@ def get_defined_chars(fontfile):
 
 def get_filtered_chars(fontpath):
     ttf = read_font(fontpath)
-    defined_chars = get_defined_chars(fontpath)
+    defined_chars = get_supported_chars(fontpath)
     avail_chars = []
 
     for char in defined_chars:
@@ -35,7 +46,7 @@ def read_font(fontfile, size=150):
     return font
 
 
-def render(font, char, size=(128, 128), pad=0):
+def render(font, char, size=(128, 128), pad=20):
     width, height = font.getsize(char)
     max_size = max(width, height)
 

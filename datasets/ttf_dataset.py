@@ -16,7 +16,8 @@ from .ttf_utils import read_font, render
 
 class TTFTrainDataset(Dataset):
     def __init__(self, data_dir, primals, decomposition, transform=None,
-                 n_in_s=3, n_in_c=3, source_font=None):
+                 n_in_s=3, n_in_c=3, source_font=None,
+                 char_filter=None):
 
         self.data_dir = data_dir
         self.primals = primals
@@ -36,7 +37,13 @@ class TTFTrainDataset(Dataset):
                 ...
             }
         """
-        self.key_font_dict, self.key_char_dict = load_data_list(data_dir, char_filter=list(self.decomposition))
+        if char_filter is None:
+            char_filter = list(self.decomposition)
+        self.key_font_dict, self.key_char_dict = load_data_list(data_dir, char_filter=char_filter)
+
+        print("Character counts per font:")
+        for key, chars in self.key_char_dict.items():
+            print(f"  - {key}: {len(chars)} characters")
 
         """
             self.char_key_dict: {
@@ -57,8 +64,13 @@ class TTFTrainDataset(Dataset):
         self.data_list = [(key, char) for key, chars in self.key_char_dict.items() for char in chars]
         # import ipdb;ipdb.set_trace()
         self.keys = sorted(self.key_font_dict)
+        #self.chars = sorted(set.union(*map(set, self.key_char_dict.values())))
         self.chars = sorted(set.union(set(), *map(set, self.key_char_dict.values())))
 
+        print(f"Total unique characters: {len(self.chars)}")
+        print(f"Total unique fonts: {len(self.keys)}")
+        print(f"Total unique data: {len(self.data_list)}")
+ 
         self.transform = transform
 
         self.n_in_s = n_in_s
@@ -172,6 +184,10 @@ class TTFValDataset(Dataset):
 
     def sample_ref_gen_chars(self, key_char_dict):
         common_chars = sorted(set.intersection(*map(set, key_char_dict.values())))
+        if not common_chars:
+            print("WARNING: No common characters in validation dataset. Using union of characters instead.")
+            common_chars = sorted(set.union(*map(set, key_char_dict.values())))
+
         sampled_chars = sample(common_chars, self.n_ref+self.n_gen)
         ref_chars = sampled_chars[:self.n_ref]
         gen_chars = sampled_chars[self.n_ref:]

@@ -1,0 +1,79 @@
+# ============================================================================
+# MXFont++ Fine-Tuning Configuration
+# ============================================================================
+#
+# Usage:
+#   python train.py cfgs/finetune.yaml
+#
+# Required:
+#   1. A pretrained checkpoint (resume)
+#   2. A folder of character images to fine-tune on
+#   3. A source TTF font for content references (e.g., NotoSansTC-Regular.ttf)
+#
+# Image folder structure (choose one):
+#   Option A - Single character per file (recommended):
+#     my_images/
+#       一.png
+#       二.png
+#       三.png
+#       ...
+#
+#   Option B - Underscore prefix:
+#     my_images/
+#       001_一.png
+#       002_二.png
+#       ...
+#
+#   Option C - Multi-font subfolders:
+#     my_images/
+#       font_name/
+#         一.png
+#         二.png
+#         ...
+# ============================================================================
+
+use_ddp: false
+
+# --- MUST SET THESE ---
+resume: 340000.pth   # pretrained model checkpoint
+work_dir: ./finetune_result_1                  # output directory
+
+decomposition: data/chn_decomposition.json   # character decomposition rules
+primals: data/chn_primals.json               # primitive components list
+
+# --- Dataset ---
+dataset_type: image
+
+dset:
+  train:
+    data_dir: zengming            # folder with your character images
+    source_font: dataset/SimSun-01.ttf      # standard font for content structure
+    extension: png
+    n_in_s: 3                                # style reference images per sample
+    n_in_c: 3                                # content reference images per sample
+  val:
+    data_dir: zengming            # can be same as train for fine-tuning
+    source_font:                             # optional: source font for validation
+    extension: png
+
+# --- Fine-tuning options ---
+fine_tune:
+  enabled: true
+  freeze_style_enc: false     # true = keep pretrained style encoder frozen
+  freeze_experts: false       # true = keep pretrained experts frozen
+  freeze_fact_blocks: false   # true = keep factorization blocks frozen
+
+# --- Learning rates (lower than full training) ---
+g_lr: 5e-5       # generator (full training default: 2e-4)
+d_lr: 2e-4       # discriminator (full training default: 1e-3)
+ac_lr: 5e-5      # auxiliary classifier (full training default: 2e-4)
+
+# --- Training schedule ---
+batch_size: 4
+max_iter: 10000       # fine-tuning needs far fewer iterations
+seed: 42
+
+# --- Logging (more frequent for fine-tuning) ---
+print_freq: 100
+val_freq: 100
+save_freq: 500

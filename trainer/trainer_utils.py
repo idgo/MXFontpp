@@ -34,41 +34,80 @@ def unflatten_B(t):
     return t.view(shape[0]//3, 3, *shape[1:])
 
 
-def overwrite_weight(model, pre_weight):
+def overwrite_weight(model, pre_weight, verbose=False):
+    """Load weights from pre_weight into model, skipping mismatched shapes."""
     model_dict = model.state_dict()
-    pre_weight = {k: v for k, v in pre_weight.items() if k in model_dict}
-
-    model_dict.update(pre_weight)
+    
+    # Filter out weights that don't exist or have mismatched shapes
+    filtered_weight = {}
+    skipped_keys = []
+    for k, v in pre_weight.items():
+        if k in model_dict:
+            if model_dict[k].shape == v.shape:
+                filtered_weight[k] = v
+            else:
+                skipped_keys.append((k, v.shape, model_dict[k].shape))
+    
+    if verbose and skipped_keys:
+        print(f"Skipped {len(skipped_keys)} weights due to shape mismatch:")
+        for k, ckpt_shape, model_shape in skipped_keys:
+            print(f"  {k}: checkpoint {ckpt_shape} vs model {model_shape}")
+    
+    model_dict.update(filtered_weight)
     model.load_state_dict(model_dict)
+    
+    return skipped_keys
 
 
-def load_checkpoint(path, gen, disc, aux_clf, g_optim, d_optim, ac_optim, force_overwrite=False):
+def load_checkpoint(path, gen, disc, aux_clf, g_optim=None, d_optim=None, ac_optim=None, force_overwrite=False):
     ckpt = torch.load(path, weights_only=False)
 
+    # Load generator
     if force_overwrite:
-        overwrite_weight(gen, ckpt['generator'])
+        overwrite_weight(gen, ckpt['generator'], verbose=True)
     else:
-        gen.load_state_dict(ckpt['generator'], strict=False)
-        g_optim.load_state_dict(ckpt['optimizer'])
+        skipped = overwrite_weight(gen, ckpt['generator'], verbose=True)
+        if not skipped and g_optim is not None:
+            # No shape mismatches, try loading optimizer
+            try:
+                g_optim.load_state_dict(ckpt['optimizer'])
+            except (ValueError, KeyError) as e:
+                print(f"WARNING: Could not load generator optimizer state: {e}")
+        elif skipped:
+            print("Generator optimizer state reset due to weight mismatches.")
 
-    if disc is not None:
+    # Load discriminator
+    if disc is not None and 'discriminator' in ckpt:
         if force_overwrite:
-            overwrite_weight(disc, ckpt['discriminator'])
+            overwrite_weight(disc, ckpt['discriminator'], verbose=True)
         else:
-            disc.load_state_dict(ckpt['discriminator'])
-            d_optim.load_state_dict(ckpt['d_optimizer'])
+            skipped = overwrite_weight(disc, ckpt['discriminator'], verbose=True)
+            if not skipped and d_optim is not None:
+                try:
+                    d_optim.load_state_dict(ckpt['d_optimizer'])
+                except (ValueError, KeyError) as e:
+                    print(f"WARNING: Could not load discriminator optimizer state: {e}")
+            elif skipped:
+                print("Discriminator optimizer state reset due to weight mismatches.")
 
-    if aux_clf is not None:
+    # Load auxiliary classifier
+    if aux_clf is not None and 'aux_clf' in ckpt:
         if force_overwrite:
-            overwrite_weight(aux_clf, ckpt['aux_clf'])
+            overwrite_weight(aux_clf, ckpt['aux_clf'], verbose=True)
         else:
-            aux_clf.load_state_dict(ckpt['aux_clf'])
-            ac_optim.load_state_dict(ckpt['ac_optimizer'])
+            skipped = overwrite_weight(aux_clf, ckpt['aux_clf'], verbose=True)
+            if not skipped and ac_optim is not None:
+                try:
+                    ac_optim.load_state_dict(ckpt['ac_optimizer'])
+                except (ValueError, KeyError) as e:
+                    print(f"WARNING: Could not load aux_clf optimizer state: {e}")
+            elif skipped:
+                print("Auxiliary classifier optimizer state reset due to weight mismatches.")
             
-    st_epoch = ckpt['epoch']
+    st_epoch = ckpt.get('epoch', 0)
     if force_overwrite:
         st_epoch = 0
-    loss = ckpt['loss']
+    loss = ckpt.get('loss', 0.0)
 
     return st_epoch, loss
 

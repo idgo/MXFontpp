@@ -19,6 +19,9 @@ language: chn
 decomposition:
 primals:
 
+# Dataset type: "ttf" for font files, "image" for image folders
+dataset_type: ttf
+
 dset_aug:
   normalize: True
   random_affine: False
@@ -28,14 +31,24 @@ dset:
     data_dir:
     n_in_s: 3
     n_in_c: 3
+    extension: png  # image file extension for image dataset mode
+    source_font:    # (fine-tuning) path to a standard .ttf font for content references
   val:
     data_dir:
     n_ref: 4
     source_font:
+    extension: png  # image file extension for image dataset mode
   test:
     data_dir:
     source_font:
     gen_chars_file:
+
+# Fine-tuning options
+fine_tune:
+  enabled: false
+  freeze_style_enc: false    # freeze the style encoder (keep pretrained features)
+  freeze_experts: false      # freeze the expert networks
+  freeze_fact_blocks: false  # freeze the factorization blocks
 
 # model
 C: 32
@@ -46,7 +59,7 @@ g_args:
     pad_type: zero
     skip_scale_var: False
   experts:
-    n_experts: 6
+    n_experts: 8
     norm: in
     activ: relu
     pad_type: zero

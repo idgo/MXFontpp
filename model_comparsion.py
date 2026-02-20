@@ -198,6 +198,9 @@ def init_generators(base_weight_path, test_model_paths, ref_path, batch_size):
     Create base and test FontGenerators; extract style factors from ref_path.
     Returns (base_font_generator, test_font_generators, style_facts, ref_paths_list).
     """
+    if ref_path is None:
+        raise ValueError("--ref-path is required. Please provide a directory containing reference images to extract style factors from.")
+    
     print("Initializing Base FontGenerator...")
     base_font_generator = FontGenerator(base_weight_path)
     print("Base FontGenerator initialized.")

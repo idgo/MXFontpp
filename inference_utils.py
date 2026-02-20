@@ -174,6 +174,9 @@ class FontGenerator:
         """
         Extracts style factors from a directory of reference images.
         """
+        if ref_path is None:
+            raise ValueError("ref_path is required but was None. Please provide --ref-path with a directory containing reference images.")
+        
         transform = transforms.Compose([
             transforms.Resize((128, 128)),
             transforms.Grayscale(num_output_channels=1),

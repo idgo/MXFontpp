@@ -53,7 +53,6 @@ class FactTrainer(BaseTrainer):
 
         self.logger.info("Start training ...")
 
-        
         pbar = tqdm(cyclize(loader), total=max_step, initial=st_step)
         for batch in pbar:
         #for batch in cyclize(loader):
