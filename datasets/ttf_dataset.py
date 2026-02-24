@@ -16,13 +16,13 @@ from .ttf_utils import read_font, render
 
 class TTFTrainDataset(Dataset):
     def __init__(self, data_dir, primals, decomposition, transform=None,
-                 n_in_s=3, n_in_c=3, source_font=None,
+                 n_in_s=3, n_in_c=3, source_font=None, extension="ttf",
                  char_filter=None):
 
         self.data_dir = data_dir
         self.primals = primals
         self.decomposition = decomposition
-        
+        self.extension = extension
 
         """
             self.key_font_dict: {
@@ -161,7 +161,7 @@ class TTFTrainDataset(Dataset):
 
 
 class TTFValDataset(Dataset):
-    def __init__(self, data_dir, source_font, char_filter, n_ref=4, n_gen=20, transform=None):
+    def __init__(self, data_dir, source_font, char_filter, n_ref=4, n_gen=20, transform=None, extension="ttf"):
 
         self.data_dir = data_dir
         self.source_font = read_font(source_font) if source_font is not None else None
@@ -181,6 +181,17 @@ class TTFValDataset(Dataset):
         self.gen_char_dict = {k: self.gen_chars for k in self.key_font_dict}
         self.data_list = [(key, char) for key, chars in self.gen_char_dict.items() for char in chars]
         self.transform = transform
+
+    def filter_chars(self):
+        """Keep only chars that appear in more than one font (same logic as TTFTrainDataset)."""
+        char_key_dict = {}
+        for char, keys in self.char_key_dict.items():
+            if len(keys) > 1:
+                char_key_dict[char] = keys
+        key_char_dict = {}
+        for key, chars in self.key_char_dict.items():
+            key_char_dict[key] = list(set(chars).intersection(char_key_dict))
+        return key_char_dict, char_key_dict
 
     def sample_ref_gen_chars(self, key_char_dict):
         common_chars = sorted(set.intersection(*map(set, key_char_dict.values())))
@@ -252,20 +263,29 @@ def sample(population, k):
 
 
 def load_data_list(data_dir, char_filter=None):
-    font_paths = sorted(Path(data_dir).glob("*.ttf"))
+    data_dir = Path(data_dir)
+    font_paths = sorted(data_dir.rglob("*.ttf"))
 
     key_font_dict = {}
     key_char_dict = {}
 
     for font_path in font_paths:
         font = read_font(font_path)
-        key_font_dict[font_path.stem] = font
+        # Use relative path as key to handle subdirs (e.g., train/source_font, val/source_font)
+        try:
+            rel_path = font_path.relative_to(data_dir)
+        except ValueError:
+            rel_path = font_path
+        key = str(rel_path).replace(".ttf", "").replace("/", "_").replace("\\", "_")
+        key_font_dict[key] = font
 
-        with open(str(font_path).replace(".ttf", ".txt")) as f:
+        txt_path = font_path.with_suffix(".txt")
+        if not txt_path.exists():
+            raise FileNotFoundError(f"Character list file not found: {txt_path}")
+        with open(txt_path) as f:
             chars = f.read()
 
         if char_filter is not None:
             chars = set(chars).intersection(char_filter)
-        key_char_dict[font_path.stem] = list(chars)
-
+        key_char_dict[key] = list(chars)
     return key_font_dict, key_char_dict

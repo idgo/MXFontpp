@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
 def render_text_to_image(text, font_path, image_resolution):
-    font_size = 100  # You can adjust this based on your preference
+    font_size = 128  # You can adjust this based on your preference
     font = ImageFont.truetype(font_path, font_size)
     
     res = []
@@ -21,11 +21,11 @@ def render_text_to_image(text, font_path, image_resolution):
     return res
 
 if __name__ == "__main__":
-    tar = "/DATA/bvac/personal/reserach/font_gen/mxfont/data/images/test"  # Specify the output folder
-    input_text = "留自落街"
+    tar = "./output/ref_img"  # Specify the output folder
+    input_text = "留自落街大街小巷"
     image_resolution = 128
     
-    src = '/DATA/bvac/personal/reserach/font_gen/use_fonts/ch'
+    src = './font_data/train'
     font_names = os.listdir(src)
     font_names = set([os.path.basename(each) for each in font_names if each.endswith('.ttf')])
 

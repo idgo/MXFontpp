@@ -36,7 +36,7 @@ use_ddp: false
 
 # --- MUST SET THESE ---
 resume: 340000.pth   # pretrained model checkpoint
-work_dir: ./finetune_result_1                  # output directory
+work_dir: ./finetune_result_8                  # output directory
 
 decomposition: data/chn_decomposition.json   # character decomposition rules
 primals: data/chn_primals.json               # primitive components list
@@ -64,16 +64,16 @@ fine_tune:
   freeze_fact_blocks: false   # true = keep factorization blocks frozen
 
 # --- Learning rates (lower than full training) ---
-g_lr: 5e-5       # generator (full training default: 2e-4)
-d_lr: 2e-4       # discriminator (full training default: 1e-3)
-ac_lr: 5e-5      # auxiliary classifier (full training default: 2e-4)
+g_lr: 2e-4       # generator (full training default: 2e-4)
+d_lr: 1e-3       # discriminator (full training default: 1e-3)
+ac_lr: 2e-4      # auxiliary classifier (full training default: 2e-4)
 
 # --- Training schedule ---
-batch_size: 4
+batch_size: 6
 max_iter: 10000       # fine-tuning needs far fewer iterations
 seed: 42
 
 # --- Logging (more frequent for fine-tuning) ---
-print_freq: 100
-val_freq: 100
-save_freq: 500
+print_freq: 200
+val_freq: 200
+save_freq: 1000
