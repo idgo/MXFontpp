@@ -36,7 +36,7 @@ use_ddp: false
 
 # --- MUST SET THESE ---
 resume: 340000.pth   # pretrained model checkpoint
-work_dir: ./finetune_result_8                  # output directory
+work_dir: ./finetune_result_9                  # output directory
 
 decomposition: data/chn_decomposition.json   # character decomposition rules
 primals: data/chn_primals.json               # primitive components list
@@ -46,13 +46,13 @@ dataset_type: image
 
 dset:
   train:
-    data_dir: zengming            # folder with your character images
+    data_dir: example_img            # folder with your character images
     source_font: dataset/SimSun-01.ttf      # standard font for content structure
     extension: png
     n_in_s: 3                                # style reference images per sample
     n_in_c: 3                                # content reference images per sample
   val:
-    data_dir: zengming            # can be same as train for fine-tuning
+    data_dir: example_img            # can be same as train for fine-tuning
     source_font:                             # optional: source font for validation
     extension: png
 

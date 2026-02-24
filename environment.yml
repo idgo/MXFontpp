@@ -1,0 +1,29 @@
+# MXFont++ conda environment
+# Create: conda env create -f environment.yml
+# Activate: conda activate mxfontpp
+
+name: mxfontpp
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python>=3.8,<3.12
+  - pytorch>=1.5
+  - torchvision
+  - numpy
+  - scipy
+  - scikit-image
+  - pillow>=10.0
+  - fonttools
+  - tqdm
+  - matplotlib
+  - opencv
+  - pip
+
+  - pip:
+    - sconf
+    - einops
+    - tensorboard

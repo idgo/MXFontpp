@@ -10,6 +10,15 @@ python train.py cfgs/finetune.yaml
 
 Before running, you must configure the config file (see below).
 
+## Environment setup (conda)
+
+```bash
+conda env create -f environment.yml
+conda activate mxfontpp
+```
+
+For GPU training, ensure PyTorch is installed with CUDA support. See [README Prerequisites](README.md#prerequisites) for details.
+
 ## Prerequisites
 
 1. **Pretrained checkpoint** — Download from the [release](https://drive.google.com/drive/folders/1x1DahG0ilAnbL-8o6mq_C2fMas_udpYq?usp=drive_link) or train your own.

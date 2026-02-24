@@ -47,7 +47,12 @@ def read_font(fontfile, size=150):
 
 
 def render(font, char, size=(128, 128), pad=20):
-    width, height = font.getsize(char)
+    # Pillow 10+ removed font.getsize(); use getbbox for compatibility
+    if hasattr(font, "getbbox"):
+        left, top, right, bottom = font.getbbox(char)
+        width, height = right - left, bottom - top
+    else:
+        width, height = font.getsize(char)
     max_size = max(width, height)
 
     if width < height:

@@ -1,19 +1,31 @@
 
 ## Prerequisites
 
-* **Python > 3.6**
+* **Python 3.8–3.11**
+* **PyTorch >= 1.5** — [Install](https://pytorch.org/get-started/locally/) (choose CUDA if you have a GPU)
 
-  Using conda is recommended: [https://docs.anaconda.com/anaconda/install/linux/](https://docs.anaconda.com/anaconda/install/linux/)
-* **pytorch >= 1.5**
+### Environment setup (conda, recommended)
 
-    To install: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)
-    
-
-* sconf, numpy, scipy, scikit-image, tqdm, jsonlib, fonttools
-
+```bash
+# Create and activate the environment
+conda env create -f environment.yml
+conda activate mxfontpp
 ```
-conda install numpy scipy scikit-image tqdm jsonlib-python3 fonttools
+
+To use CUDA, install PyTorch with CUDA support after creating the env:
+
+```bash
+conda activate mxfontpp
+conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia  # adjust cuda version as needed
 ```
+
+### Alternative: pip
+
+```bash
+pip install -r requirements.txt
+```
+
+Install PyTorch separately from [pytorch.org](https://pytorch.org/get-started/locally/) (match your CUDA version if using GPU).
 
 
 # Usage

@@ -8,3 +8,5 @@ result/*
 data/*
 .cursor/*
 .vscode/*
+finetune_result_*/*
+340000.pth

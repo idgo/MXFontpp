@@ -1,0 +1,16 @@
+# MXFont++ dependencies (use with pip after installing PyTorch)
+# PyTorch: https://pytorch.org/get-started/locally/
+
+torch>=1.5
+torchvision
+numpy
+scipy
+scikit-image
+Pillow>=10.0
+fonttools
+tqdm
+matplotlib
+opencv-python
+sconf
+einops
+tensorboard
