@@ -47,24 +47,30 @@ def read_font(fontfile, size=150):
 
 
 def render(font, char, size=(128, 128), pad=20):
-    # Pillow 10+ removed font.getsize(); use getbbox for compatibility
+    """
+    Render a single character to a square grayscale image, keeping the glyph centered
+    and avoiding truncation for fonts with non-zero origin/baseline offsets (e.g. simsun.ttc).
+    """
+    # Pillow 10+ removed font.getsize(); prefer getbbox when available for accurate bounds.
     if hasattr(font, "getbbox"):
         left, top, right, bottom = font.getbbox(char)
         width, height = right - left, bottom - top
     else:
         width, height = font.getsize(char)
-    max_size = max(width, height)
+        left, top = 0, 0
 
-    if width < height:
-        start_w = (height - width) // 2 + pad
-        start_h = pad
-    else:
-        start_w = pad
-        start_h = (width - height) // 2 + pad
+    max_side = max(width, height)
 
-    img = Image.new("L", (max_size+(pad*2), max_size+(pad*2)), 255)
+    # Create a square canvas with padding, then center the glyph's bounding box.
+    img_size = max_side + pad * 2
+    img = Image.new("L", (img_size, img_size), 255)
     draw = ImageDraw.Draw(img)
-    draw.text((start_w, start_h), char, font=font)
+
+    # Center the glyph bbox inside the square and compensate for left/top offsets
+    x = pad + (max_side - width) // 2 - left
+    y = pad + (max_side - height) // 2 - top
+
+    draw.text((x, y), char, font=font)
     img = img.resize(size, 2)
     return img
 

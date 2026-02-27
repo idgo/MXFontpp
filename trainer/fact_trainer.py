@@ -219,7 +219,8 @@ class FactTrainer(BaseTrainer):
 
                     self.evaluator.comparable_val_saveimg(self.gen_ema, self.test_loader, self.step, n_row=self.test_n_row)
 
-                    self.save(loss_dic['g_total'], self.cfg.save, self.cfg.get('save_freq', self.cfg.val_freq))
+                    save_freq = getattr(self.cfg, 'save_freq', self.cfg.val_freq)
+                    self.save(loss_dic['g_total'], self.cfg.save, save_freq)
             else:
                 pass
 
@@ -248,6 +249,8 @@ class FactTrainer(BaseTrainer):
 
         crit = RbfHSIC(1)
         for pair in exp_pairs:
+            if len(pair[0]) <= 3:
+                continue
             self.add_loss(pair, self.g_losses, "indp_fact", self.cfg["indp_fact_w"], crit)
 
     def min_cossim(self, x, y):

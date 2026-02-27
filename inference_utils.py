@@ -10,6 +10,7 @@ import models
 from datasets import render
 from utils import refine
 
+
 def find_reference_image(ref_dir, char, all_ref_paths, index, total):
     """
     Finds the corresponding reference image for a character.
@@ -22,7 +23,14 @@ def find_reference_image(ref_dir, char, all_ref_paths, index, total):
 
     # Fallback to finding any file with the character name
     for ext in supported_extensions:
-        char_files = list(Path(ref_dir).glob(f"*{char}.{ext}"))
+        pattern = f"*{char}.{ext}"
+
+        # Avoid invalid patterns like "**.png" when char is '*'
+        if char == "*":
+            char_files = list(Path(ref_dir).glob(f"*.{ext}"))
+        else:
+            char_files = list(Path(ref_dir).glob(pattern))
+
         if char_files:
             return str(char_files[0])
         
@@ -186,9 +194,9 @@ class FontGenerator:
         
         supported_extensions = ["png", "jpg", "jpeg"]
         ref_paths = []
+        resolved = Path(ref_path).resolve()
         for ext in supported_extensions:
-            ref_paths.extend(Path(ref_path).glob(f"*.{ext}"))
-        
+            ref_paths.extend(resolved.rglob(f"*.{ext}"))
         if not ref_paths:
             print(f"Warning: No reference images with supported extensions ({', '.join(supported_extensions)}) found in {ref_path}")
             return None, []

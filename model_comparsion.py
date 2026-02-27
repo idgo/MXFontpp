@@ -37,6 +37,7 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 from torchvision import transforms
 import math
+import shutil
 
 from datasets import read_font
 from inference_utils import FontGenerator, find_reference_image
@@ -57,7 +58,8 @@ def parse_args():
     parser.add_argument("--output-size", type=int, default=128, help="Output image size in pixels (width and height); used for saved images and grid tiles")
     parser.add_argument("--save-images", action="store_true", help="Save each character's generated image only (default: only save grid)")
     parser.add_argument("--batch-size", type=int, default=40, help="Batch size for processing reference images")
-    parser.add_argument("--gen-batch-size", type=int, default=300, help="Batch size for generating character images")
+    parser.add_argument("--gen-batch-size", type=int, default=200, help="Batch size for generating character images")
+    parser.add_argument("--delete", action="store_true", help="Delete all existing files in the output directory before writing new outputs")
     return parser.parse_args()
 
 
@@ -99,7 +101,10 @@ def tensor_to_pil(tensor):
     # Tensor is in range [-1, 1], convert to [0, 255]
     img = tensor.squeeze().cpu().numpy()
     img = ((img + 1) / 2 * 255).clip(0, 255).astype('uint8')
-    return Image.fromarray(img, mode='L')
+    pil_img = Image.fromarray(img, mode='L')
+    # Binarize to get black glyphs on white background instead of gray
+    pil_img = pil_img.point(lambda v: 0 if v < 250 else 255)
+    return pil_img
 
 
 def create_composite_image(source_img, ref_img_path, base_generated_img, test_generated_imgs=None, img_size=128, padding=5):
@@ -264,6 +269,75 @@ def run_generation(base_font_generator, test_font_generators, style_facts, sourc
     return source_imgs_tensor, base_generated_imgs_tensor, test_generated_imgs_tensors
 
 
+def stream_and_save_generated_images(
+    output_dir,
+    chars,
+    base_font_generator,
+    test_font_generators,
+    style_facts,
+    source_font_obj,
+    gen_batch_size,
+    transform,
+    output_size,
+):
+    """
+    Generate and save images batch by batch directly to disk to avoid storing all images in memory.
+    Also writes char_mapping.txt incrementally.
+    """
+    char_batches = [chars[i:i + gen_batch_size] for i in range(0, len(chars), gen_batch_size)]
+    mapping_path = output_dir / "char_mapping.txt"
+    total_saved = 0
+    global_idx = 0
+
+    with open(mapping_path, "w", encoding="utf-8") as f:
+        for batch_idx, batch in enumerate(char_batches):
+            print(f"  Processing batch {batch_idx + 1}/{len(char_batches)} ({len(batch)} chars)")
+            if test_font_generators:
+                _, base_generated_imgs = base_font_generator.generate_batched_char_images(
+                    style_facts, source_font_obj, batch, transform
+                )
+                source_imgs_batch, first_test_imgs = test_font_generators[0].generate_batched_char_images(
+                    style_facts, source_font_obj, batch, transform
+                )
+                test_batches = [first_test_imgs]
+                for g in range(1, len(test_font_generators)):
+                    _, test_imgs = test_font_generators[g].generate_batched_char_images(
+                        style_facts, source_font_obj, batch, transform
+                    )
+                    test_batches.append(test_imgs)
+            else:
+                source_imgs_batch, base_generated_imgs = base_font_generator.generate_batched_char_images(
+                    style_facts, source_font_obj, batch, transform
+                )
+
+            for i, char in enumerate(batch):
+                safe_char = safe_char_for_filename(char)
+                if test_font_generators:
+                    for k, gen_tensor in enumerate(test_batches):
+                        img = tensor_to_pil(gen_tensor[i])
+                        img = _resize_if_needed(img, output_size)
+                        filename = f"{global_idx:04d}_{safe_char}_test{k}.png"
+                        img.save(output_dir / filename)
+                        f.write(f"{filename}\t{char}\n")
+                    total_saved += len(test_batches)
+                else:
+                    img = tensor_to_pil(base_generated_imgs[i])
+                    img = _resize_if_needed(img, output_size)
+                    filename = f"{global_idx:04d}_{safe_char}.png"
+                    img.save(output_dir / filename)
+                    f.write(f"{filename}\t{char}\n")
+                    total_saved += 1
+                global_idx += 1
+
+            torch.cuda.empty_cache()
+
+    if test_font_generators:
+        print(f"Done! Saved {total_saved} generated images ({len(test_font_generators)} models x {len(chars)} chars) in {output_dir}")
+    else:
+        print(f"Done! Saved {total_saved} generated images in {output_dir}")
+    print(f"Character mapping saved to {mapping_path}")
+
+
 def _resize_if_needed(pil_img, output_size, model_size=128):
     """Resize PIL image to output_size if different from model_size."""
     if output_size != model_size:
@@ -323,6 +397,17 @@ def save_grid(output_dir, source_imgs_tensor, base_generated_imgs_tensor, test_g
     print(f"Grid image saved: {grid_path.absolute()}")
 
 
+def clear_output_dir(output_dir: Path):
+    """Delete all files and subdirectories inside output_dir (but keep the directory itself)."""
+    if not output_dir.exists():
+        return
+    for path in output_dir.iterdir():
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
+            shutil.rmtree(path)
+
+
 def main():
     args = parse_args()
     base_weight_path = args.base_model
@@ -341,45 +426,57 @@ def main():
     if not Path(source_font).exists():
         raise FileNotFoundError(f"Source font not found: {source_font}")
 
-    base_font_generator, test_font_generators, style_facts, ref_paths_list = init_generators(
-        base_weight_path, test_model_paths, ref_path, batch_size
-    )
-
     output_dir.mkdir(parents=True, exist_ok=True)
-    transform = get_image_transform()
-    source_font_obj = read_font(source_font)
-
-    source_imgs_tensor, base_generated_imgs_tensor, test_generated_imgs_tensors = run_generation(
-        base_font_generator,
-        test_font_generators,
-        style_facts,
-        source_font_obj,
-        chars,
-        gen_batch_size,
-        transform,
-    )
+    if args.delete:
+        print(f"Deleting all existing files in output directory: {output_dir}")
+        clear_output_dir(output_dir)
 
     if save_images:
-        save_generated_images(
+        base_font_generator, test_font_generators, style_facts, ref_paths_list = init_generators(
+            base_weight_path, test_model_paths, ref_path, batch_size
+        )
+        transform = get_image_transform()
+        source_font_obj = read_font(source_font)
+
+        stream_and_save_generated_images(
             output_dir,
             chars,
-            base_generated_imgs_tensor,
-            test_generated_imgs_tensors,
+            base_font_generator,
+            test_font_generators,
+            style_facts,
+            source_font_obj,
+            gen_batch_size,
+            transform,
             output_size,
         )
     else:
-        print(f"Generated {len(chars)} characters (per-image save disabled; use --save-images to write each generated image).")
+        base_font_generator, test_font_generators, style_facts, ref_paths_list = init_generators(
+            base_weight_path, test_model_paths, ref_path, batch_size
+        )
+        transform = get_image_transform()
+        source_font_obj = read_font(source_font)
 
-    save_grid(
-        output_dir,
-        source_imgs_tensor,
-        base_generated_imgs_tensor,
-        test_generated_imgs_tensors,
-        ref_paths_list,
-        chars,
-        ref_path,
-        output_size,
-    )
+        source_imgs_tensor, base_generated_imgs_tensor, test_generated_imgs_tensors = run_generation(
+            base_font_generator,
+            test_font_generators,
+            style_facts,
+            source_font_obj,
+            chars,
+            gen_batch_size,
+            transform,
+        )
+
+        print(f"Generated {len(chars)} characters (per-image save disabled; use --save-images to write each generated image).")
+        save_grid(
+            output_dir,
+            source_imgs_tensor,
+            base_generated_imgs_tensor,
+            test_generated_imgs_tensors,
+            ref_paths_list,
+            chars,
+            ref_path,
+            output_size,
+        )
 
 
 if __name__ == "__main__":
