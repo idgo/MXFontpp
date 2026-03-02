@@ -105,6 +105,32 @@ def _safe_filename(filename):
     return filename
 
 
+# Allowed image extensions for dataset upload
+_DATASET_IMAGE_EXTS = (".png", ".jpg", ".jpeg")
+
+
+def _safe_dataset_filename(filename):
+    """Allow only image filenames (no path, only .png/.jpg/.jpeg)."""
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        return None
+    name = filename.strip()
+    if not name:
+        return None
+    lower = name.lower()
+    if not any(lower.endswith(ext) for ext in _DATASET_IMAGE_EXTS):
+        return None
+    return name
+
+
+def _list_dataset_files(dataset_dir):
+    """Yield sorted (name, path) for image files in dataset_dir."""
+    if not dataset_dir.exists() or not dataset_dir.is_dir():
+        return
+    for f in sorted(dataset_dir.iterdir(), key=lambda p: p.name.lower()):
+        if f.is_file() and f.suffix.lower() in _DATASET_IMAGE_EXTS:
+            yield (f.name, f)
+
+
 def _checkpoints_dir(name):
     """
     Checkpoint directory: exp/<name>/result/checkpoints/ (source of truth only).
@@ -151,9 +177,9 @@ def list_experiments():
         dataset_preview = []
         dataset_count = 0
         if dataset_dir.exists() and dataset_dir.is_dir():
-            dataset_files = sorted(dataset_dir.glob("*.png"))
+            dataset_files = list(_list_dataset_files(dataset_dir))
             dataset_count = len(dataset_files)
-            dataset_preview = [f.name for f in dataset_files[:10]]
+            dataset_preview = [name for name, _ in dataset_files[:10]]
         result.append({
             "name": name,
             "mtime": mtime,
@@ -297,6 +323,129 @@ def serve_image(name, filename):
     return send_file(path, mimetype="image/png")
 
 
+def _generated_img_dir(name):
+    """Return exp/<name>/generated_img/ path for model comparison output. Path or None."""
+    exp_base = _experiment_base(name)
+    if exp_base is None:
+        return None
+    return exp_base / "generated_img"
+
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg")
+
+
+@app.route("/api/experiments/<name>/generated_img", methods=["GET"])
+def list_generated_img(name):
+    """List image files in exp/<name>/generated_img/."""
+    gen_dir = _generated_img_dir(name)
+    if gen_dir is None or not gen_dir.exists() or not gen_dir.is_dir():
+        return jsonify([])
+    result = []
+    for f in sorted(gen_dir.iterdir(), key=lambda p: p.name.lower()):
+        if f.is_file() and f.suffix.lower() in _IMAGE_EXTS:
+            result.append({"name": f.name, "mtime": f.stat().st_mtime})
+    return jsonify(result)
+
+
+_FONT_EXTS = (".ttf", ".ttc", ".otf")
+
+
+@app.route("/api/source-fonts", methods=["GET"])
+def list_source_fonts():
+    """List font files in project source_font/ directory."""
+    src_dir = get_project_root() / "source_font"
+    if not src_dir.exists() or not src_dir.is_dir():
+        return jsonify([])
+    result = []
+    for f in sorted(src_dir.iterdir(), key=lambda p: p.name.lower()):
+        if f.is_file() and f.suffix.lower() in _FONT_EXTS:
+            result.append({"name": f.name, "path": f"source_font/{f.name}"})
+    return jsonify(result)
+
+
+@app.route("/api/cjk-ranges", methods=["GET"])
+def list_cjk_ranges():
+    """List char list files in project cjk_ranges/ directory."""
+    ranges_dir = get_project_root() / "cjk_ranges"
+    if not ranges_dir.exists() or not ranges_dir.is_dir():
+        return jsonify([])
+    result = []
+    for f in sorted(ranges_dir.iterdir(), key=lambda p: p.name.lower()):
+        if f.is_file() and f.suffix.lower() == ".txt":
+            result.append({"name": f.name, "path": f"cjk_ranges/{f.name}"})
+    return jsonify(result)
+
+
+@app.route("/api/experiments/<name>/generated_img/<filename>", methods=["GET"])
+def serve_generated_img(name, filename):
+    """Serve an image from exp/<name>/generated_img/."""
+    gen_dir = _generated_img_dir(name)
+    if gen_dir is None:
+        abort(404)
+    safe = _safe_filename(filename)
+    if safe is None:
+        abort(404)
+    lower = safe.lower()
+    if not any(lower.endswith(ext) for ext in _IMAGE_EXTS):
+        abort(404)
+    path = (gen_dir / safe).resolve()
+    if not path.exists() or not path.is_file():
+        abort(404)
+    if not str(path).startswith(str(gen_dir.resolve())):
+        abort(404)
+    return send_file(path, mimetype=_dataset_image_mimetype(safe))
+
+
+@app.route("/api/experiments/<name>/generate-command", methods=["GET"])
+def get_generate_command(name):
+    """Build model_comparsion.py command for given params. Ref path defaults to exp/<name>/dataset."""
+    exp_base = _experiment_base(name)
+    if exp_base is None:
+        abort(404)
+    source_font = request.args.get("source_font", "").strip()
+    char_file = request.args.get("char_file", "").strip()
+    checkpoint = request.args.get("checkpoint", "").strip()
+
+    if not source_font:
+        return jsonify({"command": "", "error": "Select a source font"})
+    if not char_file:
+        return jsonify({"command": "", "error": "Select a char file"})
+    if not checkpoint:
+        return jsonify({"command": "", "error": "Select a checkpoint"})
+
+    project_root = get_project_root()
+    ckpt_dir = _checkpoints_dir(name)
+    if ckpt_dir is None or not ckpt_dir.exists():
+        return jsonify({"command": "", "error": "No checkpoints"})
+    base_model_path = ckpt_dir / checkpoint
+    if not base_model_path.exists():
+        return jsonify({"command": "", "error": f"Checkpoint not found: {checkpoint}"})
+
+    gen_dir = _generated_img_dir(name)
+    dataset_dir = exp_base / "dataset"
+    ref_path = str(dataset_dir.resolve()) if dataset_dir.exists() else ""
+    source_font_path = str((project_root / source_font).resolve()) if not os.path.isabs(source_font) else source_font
+    char_file_path = str((project_root / char_file).resolve()) if not os.path.isabs(char_file) else char_file
+
+    def shell_escape(s):
+        if not s or " " in s or "'" in s or "\n" in s:
+            return "'" + str(s).replace("'", "'\"'\"'") + "'"
+        return str(s)
+
+    parts = [
+        sys.executable,
+        shell_escape(str(project_root / "model_comparsion.py")),
+        "--base-model", shell_escape(str(base_model_path.resolve())),
+        "--output-dir", shell_escape(str(gen_dir)),
+        "--source-font", shell_escape(source_font_path),
+        "--char-file", shell_escape(char_file_path),
+        "--save-images",
+    ]
+    if ref_path:
+        parts.extend(["--ref-path", shell_escape(ref_path)])
+    return jsonify({"command": " ".join(parts)})
+
+
 @app.route("/api/experiments/<name>/dataset", methods=["GET"])
 def list_dataset(name):
     """List dataset images from exp/<name>/dataset/."""
@@ -307,9 +456,21 @@ def list_dataset(name):
     if not dataset_dir.exists() or not dataset_dir.is_dir():
         return jsonify([])
     result = []
-    for f in sorted(dataset_dir.glob("*.png")):
-        result.append({"name": f.name, "mtime": f.stat().st_mtime})
+    for fname, fpath in _list_dataset_files(dataset_dir):
+        result.append({"name": fname, "mtime": fpath.stat().st_mtime})
     return jsonify(result)
+
+
+def _dataset_image_mimetype(filename):
+    """Return mimetype for dataset image by extension."""
+    if not filename:
+        return "application/octet-stream"
+    lower = filename.lower()
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return "image/jpeg"
+    return "application/octet-stream"
 
 
 @app.route("/api/experiments/<name>/dataset/<filename>", methods=["GET"])
@@ -318,7 +479,7 @@ def serve_dataset_image(name, filename):
     exp_base = _experiment_base(name)
     if exp_base is None:
         abort(404)
-    safe = _safe_filename(filename)
+    safe = _safe_dataset_filename(filename) or _safe_filename(filename)
     if safe is None:
         abort(404)
     dataset_dir = exp_base / "dataset"
@@ -327,7 +488,46 @@ def serve_dataset_image(name, filename):
         abort(404)
     if not str(path).startswith(str(dataset_dir.resolve())):
         abort(404)
-    return send_file(path, mimetype="image/png")
+    return send_file(path, mimetype=_dataset_image_mimetype(safe))
+
+
+@app.route("/api/experiments/<name>/dataset/upload", methods=["POST"])
+def upload_dataset_images(name):
+    """Upload image files to exp/<name>/dataset/. Creates dataset dir if needed."""
+    exp_base = _experiment_base(name)
+    if exp_base is None:
+        abort(404)
+    dataset_dir = exp_base / "dataset"
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    root_resolved = dataset_dir.resolve()
+    uploaded = []
+    errors = []
+    # Support both "images" and "files" for form key
+    files = request.files.getlist("images") or request.files.getlist("files") or []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        base_name = f.filename.strip()
+        if "\\" in base_name:
+            base_name = base_name.split("\\")[-1]
+        if "/" in base_name:
+            base_name = base_name.split("/")[-1]
+        safe = _safe_dataset_filename(base_name)
+        if safe is None:
+            errors.append(base_name + ": invalid or unsupported format (use .png, .jpg, .jpeg)")
+            continue
+        dest = (dataset_dir / safe).resolve()
+        if not str(dest).startswith(str(root_resolved)):
+            errors.append(safe + ": path not allowed")
+            continue
+        try:
+            f.save(str(dest))
+            uploaded.append(safe)
+        except Exception as e:
+            errors.append(safe + ": " + str(e))
+    if errors and not uploaded:
+        return jsonify({"error": "; ".join(errors), "uploaded": []}), 400
+    return jsonify({"uploaded": uploaded, "errors": errors if errors else None})
 
 
 def _dataset_path_allowed(dataset_path):
@@ -342,64 +542,99 @@ def _dataset_path_allowed(dataset_path):
     return False
 
 
+def _path_allowed(path_str, must_exist=True, must_be_file=False, must_be_dir=False):
+    """Check path is under ALLOWED_DATASET_BASES. Optionally require existence and type."""
+    if not path_str or not isinstance(path_str, str):
+        return False
+    path = Path(path_str.strip()).resolve()
+    if must_exist and not path.exists():
+        return False
+    if must_be_file and not path.is_file():
+        return False
+    if must_be_dir and not path.is_dir():
+        return False
+    path_str_resolved = str(path)
+    for base in ALLOWED_DATASET_BASES:
+        base_resolved = str(Path(base).resolve())
+        if path_str_resolved == base_resolved or path_str_resolved.startswith(base_resolved + os.sep):
+            return True
+    return False
+
+
 @app.route("/api/experiments/run", methods=["POST"])
 def run_experiment():
+    """Create experiment folder (required: exp_name only). Optionally start training if dataset_path is provided."""
     data = request.get_json(force=True, silent=True) or {}
-    exp_name = data.get("exp_name", "").strip()
-    dataset_path = data.get("dataset_path", "").strip()
+    exp_name = (data.get("exp_name") or "").strip()
+    dataset_path = (data.get("dataset_path") or "").strip() or None
     epochs = data.get("epochs")
     fixed_char_txt = (data.get("fixed_char_txt") or "").strip() or None
 
+    if not exp_name:
+        return jsonify({"error": "Experiment name is required"}), 400
     safe_name = _safe_exp_name(exp_name)
     if safe_name is None:
         return jsonify({"error": "Invalid experiment name (use only letters, numbers, underscore, hyphen)"}), 400
-    if not dataset_path:
-        return jsonify({"error": "dataset_path is required"}), 400
-    if not _dataset_path_allowed(dataset_path):
-        return jsonify({"error": "Dataset path must exist and be under an allowed directory"}), 400
 
     root = get_experiments_root()
     project_root = get_project_root()
-    # exp/<name>/result/<name>/ - matches existing structure
+    # exp/<name>/result/<name>/ with checkpoints/ and images/ (see exp/README.md)
     out_path = root / safe_name / "result" / safe_name
     out_path.mkdir(parents=True, exist_ok=True)
+    (out_path / "checkpoints").mkdir(exist_ok=True)
+    (out_path / "dataset").mkdir(exist_ok=True)
 
-    if safe_name in _running_jobs:
-        proc = _running_jobs[safe_name]
-        if proc.poll() is None:
-            return jsonify({"error": "A run for this experiment is already in progress"}), 409
-        else:
-            del _running_jobs[safe_name]
+    # Build display command (template when no dataset_path; full command if provided)
+    def shell_escape(s):
+        if not s or " " in s or "'" in s or "\n" in s:
+            return "'" + str(s).replace("'", "'\"'\"'") + "'"
+        return str(s)
 
-    cmd = [
-        sys.executable,
-        str(project_root / "finetuning.py"),
-        "cfgs/finetune.yaml",
-        "--output_path", str(out_path),
-        "--dataset_path", dataset_path,
-    ]
-    if epochs is not None:
+    if dataset_path:
+        if not _dataset_path_allowed(dataset_path):
+            return jsonify({"error": "Dataset path must exist and be under an allowed directory"}), 400
+        if safe_name in _running_jobs:
+            proc = _running_jobs[safe_name]
+            if proc.poll() is None:
+                return jsonify({"error": "A run for this experiment is already in progress"}), 409
+            else:
+                del _running_jobs[safe_name]
+        cmd = [
+            sys.executable,
+            str(project_root / "finetuning.py"),
+            "cfgs/finetune.yaml",
+            "--output_path", str(out_path),
+            "--dataset_path", dataset_path,
+        ]
+        if epochs is not None:
+            try:
+                cmd.extend(["--epochs", str(int(epochs))])
+            except (TypeError, ValueError):
+                pass
+        if fixed_char_txt:
+            fp = Path(fixed_char_txt).resolve()
+            if fp.exists() and fp.is_file() and _dataset_path_allowed(str(fp.parent)):
+                cmd.extend(["--fixed_char_txt", str(fp)])
+        command_display = " ".join(shell_escape(c) for c in cmd)
         try:
-            cmd.extend(["--epochs", str(int(epochs))])
-        except (TypeError, ValueError):
-            pass
-    if fixed_char_txt:
-        fp = Path(fixed_char_txt).resolve()
-        if fp.exists() and fp.is_file() and _dataset_path_allowed(str(fp.parent)):
-            cmd.extend(["--fixed_char_txt", str(fp)])
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            _running_jobs[safe_name] = proc
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        return jsonify({"job_id": safe_name, "status": "started", "command": command_display})
 
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(project_root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        _running_jobs[safe_name] = proc
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    return jsonify({"job_id": safe_name, "status": "started"})
+    # No dataset_path: just created folder; show command template
+    command_display = (
+        "python finetuning.py cfgs/finetune.yaml "
+        "--output_path " + shell_escape(str(out_path)) + " "
+        "--dataset_path <path_to_your_dataset>"
+    )
+    return jsonify({"job_id": safe_name, "status": "created", "command": command_display})
 
 
 @app.route("/api/experiments/<name>/status", methods=["GET"])
