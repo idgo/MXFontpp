@@ -32,8 +32,6 @@ from datasets import get_trn_loader, get_val_loader, get_image_trn_loader, get_i
 def setup_args_and_config():
     parser = argparse.ArgumentParser()
     parser.add_argument("config_paths", nargs="+", help="path/to/config.yaml")
-    parser.add_argument("--fixed_char_txt", type=str, default=None,
-                        help="Path to a text file containing the characters for training")
     parser.add_argument(
         "--epochs",
         "--epoch",
@@ -53,6 +51,12 @@ def setup_args_and_config():
         type=str,
         default=None,
         help="Dataset path. Overrides dset.train.data_dir (and dset.val.data_dir when present).",
+    )
+    parser.add_argument(
+        "--max_iter",
+        type=int,
+        default=None,
+        help="Maximum training iterations. Overrides max_iter in config.",
     )
 
     args, left_argv = parser.parse_known_args()
@@ -163,14 +167,7 @@ def train(args, cfg, ddp_gpu=-1):
     primals = json.load(open(cfg.primals))
     decomposition = json.load(open(cfg.decomposition))
     n_comps = len(primals)
-
-    if args.fixed_char_txt:
-        with open(args.fixed_char_txt, "r") as f:
-            fixed_chars = f.read().strip()
-        char_filter = list(set(decomposition).intersection(fixed_chars))
-        logger.info(f"Using fixed {len(char_filter)} chars for training")
-    else:
-        char_filter = list(decomposition)
+    char_filter = list(decomposition)
 
     # Select dataset type based on config (default: "ttf" for backward compatibility)
     dataset_type = cfg.get("dataset_type", "ttf")
@@ -302,7 +299,7 @@ def train(args, cfg, ddp_gpu=-1):
                           evaluator, test_loader,
                           cfg)
 
-    # Determine max iterations: epoch-based if requested, otherwise use cfg.max_iter
+    # Determine max iterations: --epochs overrides --max_iter overrides cfg.max_iter
     max_iter = cfg.max_iter
     if getattr(args, "epochs", None) is not None:
         steps_per_epoch = len(trn_loader)
@@ -311,6 +308,9 @@ def train(args, cfg, ddp_gpu=-1):
             f"Using epoch-based schedule: {args.epochs} epochs * "
             f"{steps_per_epoch} steps/epoch = {max_iter} iterations"
         )
+    elif getattr(args, "max_iter", None) is not None:
+        max_iter = args.max_iter
+        logger.info(f"Using max_iter override: {max_iter}")
 
     trainer.train(trn_loader, st_step, max_iter)
 

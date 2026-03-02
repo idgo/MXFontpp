@@ -2,11 +2,7 @@
 
 This guide describes how to fine-tune a pretrained MXFont++ model on your own character images using `cfgs/finetune.yaml`.
 
-## Quick Start
 
-```bash
-python train.py cfgs/finetune.yaml
-```
 
 Before running, you must configure the config file (see below).
 
@@ -19,11 +15,58 @@ conda activate mxfontpp
 
 For GPU training, ensure PyTorch is installed with CUDA support. See [README Prerequisites](README.md#prerequisites) for details.
 
+
+
 ## Prerequisites
 
 1. **Pretrained checkpoint** — Download from the [release](https://drive.google.com/drive/folders/1x1DahG0ilAnbL-8o6mq_C2fMas_udpYq?usp=drive_link) or train your own.
-2. **Character images** — A folder of PNG images, one character per file.
+2. **Character images** — A folder of PNG images, one character per file. See [Generating Images from TTF](#generating-images-from-ttf) below if you have a font and need to create these.
 3. **Source TTF font** — A standard font (e.g. SimSun, NotoSansTC) for content structure references.
+
+## Generating Images from TTF
+
+Use `scripts/generate_char_images.py` to render characters from a font file (TTF, OTF, WOFF, WOFF2) as PNGs. This produces the character image folder required for fine-tuning.
+
+**Basic usage** (path to font is required):
+
+```bash
+# From specific characters
+python scripts/generate_char_images.py source-font.ttf --chars "一二三四五" -o my_character_images
+
+# From a character list file (one per line or one concatenated line)
+python scripts/generate_char_images.py source-font.ttf --char-file chars.txt -o my_character_images
+
+# Randomly sample CJK characters (up to 500 by default)
+python scripts/generate_char_images.py source-font.ttf -o my_character_images
+
+# Render all characters in the font
+python scripts/generate_char_images.py source-font.ttf --all -o my_character_images
+```
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output-dir` / `-o` | `./char_images` | Output directory for PNGs |
+| `--chars` | — | String of characters (e.g. `"你好"`) |
+| `--char-file` | — | Text file with characters (one per line or concatenated) |
+| `--all` | off | Render all characters in the font cmap |
+| `--size` | 128 | Image width and height (128 matches model input) |
+| `--prefix` | `""` | Filename prefix (e.g. `001_` → `001_一.png`) |
+| `--max-count` | 500 | Maximum images to output (random mode) |
+| `--delete` | off | Delete output directory before generating |
+
+Output: one PNG per character, named `{char}.png` or `{prefix}{char}.png`. Only characters present in `chn_decomposition.json` will be used during fine-tuning.
+
+**Example workflow** (generate images from a TTF, then fine-tune):
+
+```bash
+# 1. Generate character images from your font
+python scripts/generate_char_images.py myfont.ttf --char-file data/common_chars.txt -o my_character_images
+
+# 2. Set dset.train.data_dir to my_character_images in cfgs/finetune.yaml, then run
+python finetuning.py cfgs/finetune.yaml --dataset_path my_character_images
+```
 
 ## Configuration
 
@@ -92,20 +135,29 @@ Fine-tuning uses the same learning rates as full training by default. You can lo
 
 With `max_iter: 10000`, fine-tuning typically needs far fewer iterations than full training.
 
-## Fixed Character Set (Optional)
+## CLI Overrides
 
-To restrict training to specific characters, pass a text file:
+You can override config values from the command line:
+
+| Option | Description |
+|--------|-------------|
+| `--epochs N` | Train for N epochs (overrides `max_iter`) |
+| `--max_iter N` | Maximum training iterations |
+| `--output_path PATH` | Override `work_dir` |
+| `--dataset_path PATH` | Override `dset.train.data_dir` and `dset.val.data_dir` |
+
+Precedence: `--epochs` overrides `--max_iter`, which overrides `max_iter` in the config.
+
+Example: important command for finetuning
 
 ```bash
-python train.py cfgs/finetune.yaml
+python finetuning.py cfgs/finetune.yaml --max_iter 5000 --output_path ./my_finetune --dataset_path my_character_images
 ```
-
-`chars.txt` should list one character per line (or a single concatenated string). Only characters present in the decomposition file and in this list are used.
 
 ## Example Configuration
 
 ```yaml
-resume: 340000.pth
+resume: 340000.pth # pre-trained model
 work_dir: ./finetune_result
 dataset_type: image # ttf is not ready yet. Please use image.
 
@@ -140,41 +192,37 @@ max_iter: 10000
 
 ## Model Comparison (`model_comparsion.py`)
 
-Use `model_comparsion.py` to visualize generated fonts and compare base vs fine-tuned (or multiple) models. It produces a grid: **[Source] [Reference] [Base] [Test0] [Test1] …**
+Use `model_comparsion.py` to visualize generated fonts and compare base vs fine-tuned (or multiple) models. It produces a grid with columns **[Source] [Reference] [Base] [Test0] [Test1] …** (S, R, B, T0, T1... in row labels).
 
-### Requirements
+### Required Arguments
 
-- `--base-model`: Path to base/pretrained weights (required)
-- `--ref-path`: Directory with reference images (style source; required)
-- `--source-font`: TTF font for character structure (required)
+- `--base-model`: Path to the model to inteference
+- `--ref-path`: Directory with reference images (style source)
+- `--source-font`: Path to font file for character structure
 - `--chars` **or** `--char-file`: Characters to generate (one required)
 
 ### Reference Image Layout
 
-Same structure as eval: per-font subfolders, one character per PNG:
+Place reference images in the ref-path directory. The script recursively finds PNG/JPG/JPEG files. Per-character lookup: `{char}.png` or any filename containing the character.
 
 ```
 ref_images/
-  font_name/
-    一.png
-    二.png
-    ...
+  一.png
+  二.png
+  三.png
+  ...
 ```
+
+Or use subfolders; the script uses `rglob` to find images.
 
 ### Examples
 
 ```bash
-# Base model only (3 columns: Source, Reference, Base)
-python model_comparsion.py --base-model 340000.pth --ref-path ref_images/ --source-font dataset/SimSun-01.ttf --chars "大家庭日前"
-
-# Compare base vs fine-tuned model
-python model_comparsion.py --base-model 340000.pth --test-model finetune_result/checkpoints/10000.pth --ref-path ref_images/ --source-font dataset/SimSun-01.ttf --char-file common_chars.txt
-
-# Multiple test models
-python model_comparsion.py --base-model base.pth --test-model t1.pth,t2.pth,t3.pth --ref-path ref_images/ --source-font font.ttf --chars "測試文字"
-
 # Save per-character images and custom output
 python model_comparsion.py --base-model merged.pth --ref-path ref_images/ --source-font font.ttf --char-file chars.txt --output-dir ./out --output-size 256 --save-images
+
+# Clear output directory before writing
+python model_comparsion.py --base-model merged.pth --ref-path ref_images/ --source-font font.ttf --chars "你好" --output-dir ./out --delete
 ```
 
 ### Options
@@ -183,14 +231,19 @@ python model_comparsion.py --base-model merged.pth --ref-path ref_images/ --sour
 |--------|---------|-------------|
 | `--base-model` | (required) | Base model weights path |
 | `--test-model` | — | Comma-separated test model paths (e.g. fine-tuned) |
-| `--ref-path` | — | Reference images directory |
-| `--source-font` | — | TTF font for character structure |
+| `--ref-path` | — | Reference images directory (required) |
+| `--source-font` | — | Font for character structure (required) |
 | `--chars` | — | Inline string of characters |
-| `--char-file` | — | Text file with characters (one line or one per line) |
+| `--char-file` | — | Text file with characters (one line or concatenated) |
 | `--output-dir` | `./out` | Output directory |
 | `--output-size` | 128 | Grid tile and saved image size |
 | `--save-images` | off | Save per-character generated images |
-| `--batch-size` | 40 | Batch size for reference processing |
-| `--gen-batch-size` | 300 | Batch size for generation |
+| `--batch-size` | 40 | Batch size for reference image processing |
+| `--gen-batch-size` | 200 | Batch size for generation |
+| `--delete` | off | Delete existing files in output dir before writing |
 
-Output: `{output_dir}/all_results_grid.png` (and per-image files if `--save-images`).
+### Output
+
+- **Grid**: `{output_dir}/all_results_grid.png` (always saved)
+- **Per-character images** (with `--save-images`): `{idx:04d}_{char}.png` or `{idx:04d}_{char}_test{k}.png` for each test model
+- **Character mapping**: `char_mapping.txt` (filename → character) when using `--save-images`
