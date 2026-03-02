@@ -280,7 +280,7 @@ def main() -> None:
     prefix = args.prefix
 
     # Font point size for drawing; reduce when padding so glyph fits inside (size - 2*pad)
-    RENDER_PAD = 20
+    RENDER_PAD = 10
     font_pt = max(72, int(args.size * 1.2))
     inner = max(1, args.size - 2 * RENDER_PAD)
     font_pt = max(72, int(font_pt * inner / args.size))

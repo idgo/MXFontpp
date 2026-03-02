@@ -41,7 +41,6 @@ body {
 
 #main {
   padding: 1.5rem;
-  max-width: 2400px;
   margin: 0 auto;
 }
 
@@ -132,6 +131,238 @@ body {
   background: #1a1a1e;
   border-radius: 4px;
   border: 1px solid #3f3f46;
+}
+
+.exp-table-col-select {
+  width: 2.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.exp-table-col-select input {
+  cursor: pointer;
+}
+
+/* Compare view */
+.compare-chart-controls {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+
+.compare-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .compare-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compare-col {
+  background: #252529;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.compare-col-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.compare-col-title a {
+  color: #67c6c0;
+  text-decoration: none;
+}
+
+.compare-col-title a:hover {
+  text-decoration: underline;
+}
+
+.compare-summary {
+  font-size: 0.8125rem;
+  color: #71717a;
+  margin-bottom: 0.75rem;
+}
+
+.compare-table-wrap {
+  margin-top: 1rem;
+}
+
+.compare-table-wrap .metrics-table {
+  font-size: 0.8125rem;
+}
+
+.compare-table-note {
+  font-size: 0.75rem;
+  color: #71717a;
+  margin-top: 0.5rem;
+}
+
+.compare-table-note a {
+  color: #67c6c0;
+}
+
+.compare-generated-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #3f3f46;
+}
+
+.compare-section-title {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+}
+
+.compare-gen-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+
+.compare-gen-label {
+  font-weight: 600;
+}
+
+.compare-gen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.compare-gen-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+  background: #252529;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.compare-gen-pair-imgs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.compare-gen-cell {
+  position: relative;
+  min-height: 60px;
+}
+
+.compare-gen-cell a {
+  display: block;
+}
+
+.compare-gen-cell img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid #3f3f46;
+}
+
+.compare-gen-pair .img-caption {
+  font-size: 0.75rem;
+  color: #71717a;
+  word-break: break-all;
+  text-align: center;
+}
+
+.compare-gen-placeholder {
+  min-height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #52525b;
+  font-size: 1.25rem;
+  background: #18181b;
+  border: 1px dashed #3f3f46;
+  border-radius: 4px;
+}
+
+/* Compare tab: dataset vs generated (intersection, side by side) */
+.compare-gen-dataset-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+
+.compare-gen-dataset-label {
+  font-weight: 600;
+}
+
+.compare-gen-dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.compare-gen-dataset-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: center;
+  background: #252529;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.compare-gen-dataset-pair-imgs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.compare-gen-dataset-cell {
+  position: relative;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.compare-gen-dataset-cell-label {
+  font-size: 0.6875rem;
+  color: #71717a;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.compare-gen-dataset-cell a {
+  display: block;
+}
+
+.compare-gen-dataset-cell img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid #3f3f46;
+}
+
+.compare-gen-dataset-pair .img-caption {
+  font-size: 0.75rem;
+  color: #71717a;
+  word-break: break-all;
+  text-align: center;
 }
 
 /* Experiment detail – tabs */
