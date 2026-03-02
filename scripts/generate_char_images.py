@@ -118,6 +118,17 @@ def render_char(
     return img
 
 
+def is_image_empty(img: Image.Image) -> bool:
+    """
+    Return True if the image has no variation (all pixels are the same value).
+    Such images are considered empty/blank and can be filtered out.
+    """
+    if img.mode != "L":
+        img = img.convert("L")
+    lo, hi = img.getextrema()
+    return lo == hi
+
+
 def chars_from_args(
     chars_str: Optional[str],
     char_file: Optional[str],
@@ -197,15 +208,6 @@ def main() -> None:
         help="Render all characters supported by the font (from cmap)",
     )
     parser.add_argument(
-        "--random",
-        nargs="?",
-        type=int,
-        default=None,
-        const=100,
-        metavar="N",
-        help="Randomly sample N Chinese (CJK) characters from the font (default: 100). English/symbols excluded.",
-    )
-    parser.add_argument(
         "--size",
         type=int,
         default=128,
@@ -221,9 +223,9 @@ def main() -> None:
     parser.add_argument(
         "--max-count",
         type=int,
-        default=None,
+        default=500,
         metavar="N",
-        help="Maximum number of images to output (cap on characters to render).",
+        help="Maximum number of images to output (default 500; counts only non-empty, written images). In random mode, pool size = 2*N.",
     )
     parser.add_argument(
         "--delete",
@@ -237,21 +239,38 @@ def main() -> None:
         print(f"Error: font file not found: {font_path}", file=sys.stderr)
         sys.exit(1)
 
-    chars = chars_from_args(
-        args.chars,
-        args.char_file,
-        font_path,
-        args.all,
-        args.random,
-    )
-    if args.max_count is not None and args.max_count >= 0:
-        chars = chars[: args.max_count]
-    if not chars:
-        print(
-            "Error: no characters to generate. Use --chars, --char-file, --all, or --random.",
-            file=sys.stderr,
+    use_explicit_source = args.chars or args.char_file or args.all
+    if use_explicit_source:
+        chars = chars_from_args(
+            args.chars,
+            args.char_file,
+            font_path,
+            args.all,
+            None,
         )
-        sys.exit(1)
+        if not chars:
+            print(
+                "Error: no characters to generate. Use --chars, --char-file, or --all.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        char_iter = iter(chars)
+        def next_char():
+            try:
+                return next(char_iter)
+            except StopIteration:
+                return None
+    else:
+        supported = get_supported_chars(font_path)
+        pool = [c for c in supported if is_cjk_unified(c)]
+        if not pool:
+            print(
+                "Error: no CJK characters in font for random sampling.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        def next_char():
+            return random.choice(pool)
 
     out_dir = Path(args.output_dir)
     if args.delete and out_dir.exists():
@@ -261,7 +280,7 @@ def main() -> None:
     prefix = args.prefix
 
     # Font point size for drawing; reduce when padding so glyph fits inside (size - 2*pad)
-    RENDER_PAD = 10
+    RENDER_PAD = 20
     font_pt = max(72, int(args.size * 1.2))
     inner = max(1, args.size - 2 * RENDER_PAD)
     font_pt = max(72, int(font_pt * inner / args.size))
@@ -274,22 +293,29 @@ def main() -> None:
         print(f"Error loading font: {e}", file=sys.stderr)
         sys.exit(1)
 
+    written = 0
     try:
-        for char in chars:
+        while written < args.max_count:
+            char = next_char()
+            if char is None:
+                break
             try:
                 img = render_char(font, char, size=size, pad=RENDER_PAD)
 
-                # File naming: {char}.png, with optional prefix; sanitize path separator.
+                if is_image_empty(img):
+                    print(f"Skip {char!r}: empty image", file=sys.stderr)
+                    continue
+
                 safe_char = char.replace(os.sep, "_")
                 name = f"{prefix}{safe_char}.png"
-
                 out_path = out_dir / name
                 img.save(out_path, "PNG")
                 print(out_path)
+                written += 1
             except Exception as e:
                 print(f"Skip {char!r}: {e}", file=sys.stderr)
 
-        print(f"Done. Wrote {len(chars)} image(s) to {out_dir}")
+        print(f"Done. Wrote {written} image(s) to {out_dir}")
     finally:
         if temp_path and os.path.exists(temp_path):
             try:

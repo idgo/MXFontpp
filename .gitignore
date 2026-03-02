@@ -8,5 +8,7 @@ result/*
 data/*
 .cursor/*
 .vscode/*
-finetune_result_*/*
+*.pth
 340000.pth
+exp/*
+finetune_result_blkp/*
