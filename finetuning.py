@@ -164,8 +164,8 @@ def train(args, cfg, ddp_gpu=-1):
 
     trn_transform, val_transform = setup_transforms(cfg)
 
-    primals = json.load(open(cfg.primals))
-    decomposition = json.load(open(cfg.decomposition))
+    primals = json.load(open(cfg.primals, encoding="utf-8"))
+    decomposition = json.load(open(cfg.decomposition, encoding="utf-8"))
     n_comps = len(primals)
     char_filter = list(decomposition)
 
