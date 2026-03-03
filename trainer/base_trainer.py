@@ -5,6 +5,7 @@ MIT license
 """
 
 import copy
+import shutil
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -190,8 +191,13 @@ class BaseTrainer:
 
             if last_save:
                 utils.rm(last_ckpt_path)
-                last_ckpt_path.symlink_to(step_ckpt_path)
-                log += " and symlink to {}".format(last_ckpt_path)
+                try:
+                    last_ckpt_path.symlink_to(step_ckpt_path)
+                    log += " and symlink to {}".format(last_ckpt_path)
+                except OSError:
+                    # Windows 上建立 symlink 需管理員權限，改為複製
+                    shutil.copy2(str(step_ckpt_path), str(last_ckpt_path))
+                    log += " and copy to {}".format(last_ckpt_path)
 
         if not step_save and last_save:
             utils.rm(last_ckpt_path)  # last 가 symlink 일 경우 지우고 써줘야 함.
