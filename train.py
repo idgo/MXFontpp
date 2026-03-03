@@ -115,12 +115,12 @@ def train(args, cfg, ddp_gpu=-1):
 
     trn_transform, val_transform = setup_transforms(cfg)
 
-    primals = json.load(open(cfg.primals))
-    decomposition = json.load(open(cfg.decomposition))
+    primals = json.load(open(cfg.primals, encoding="utf-8"))
+    decomposition = json.load(open(cfg.decomposition, encoding="utf-8"))
     n_comps = len(primals)
 
     if args.fixed_char_txt:
-        with open(args.fixed_char_txt, "r") as f:
+        with open(args.fixed_char_txt, "r", encoding="utf-8") as f:
             fixed_chars = f.read().strip()
         char_filter = list(set(decomposition).intersection(fixed_chars))
         logger.info(f"Using fixed {len(char_filter)} chars for training")
