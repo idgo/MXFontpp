@@ -683,13 +683,32 @@ body {
   max-width: 100%;
   width: auto;
   height: auto;
-  border-radius: 4px;
-  border: 1px solid #3f3f46;
 }
 
 .img-grid .img-caption {
   font-size: 0.8125rem;
   color: #71717a;
+}
+
+/* Generated tab: compact view (no labels, no gap) */
+#generatedImgGrid.compact-view {
+  gap: 0;
+}
+#generatedImgGrid.compact-view .img-caption {
+  display: none;
+}
+
+.generated-img-toolbar {
+  margin-bottom: 0.75rem;
+}
+.generated-compact-label {
+  font-size: 0.9375rem;
+  color: #a1a1aa;
+  cursor: pointer;
+  user-select: none;
+}
+.generated-compact-label input {
+  margin-right: 0.35rem;
 }
 
 .generated-load-more-wrap {
@@ -789,6 +808,37 @@ body {
   word-break: break-all;
   margin: 0;
   color: #d4d4d8;
+}
+
+.finetune-command-section .finetune-description {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: #a1a1aa;
+}
+
+.finetune-command-section .finetune-options {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.finetune-command-section .finetune-options .form-row {
+  flex: 1;
+}
+
+.finetune-command-section .finetune-hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: #71717a;
+}
+
+.finetune-command-section .finetune-hint a {
+  color: #67c6c0;
+  text-decoration: none;
+}
+
+.finetune-command-section .finetune-hint a:hover {
+  text-decoration: underline;
 }
 
 /* New experiment form */

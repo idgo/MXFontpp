@@ -148,6 +148,15 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 
+@app.route("/fine_tuning.md")
+def serve_fine_tuning_md():
+    """Serve fine_tuning.md for the Finetune tab link."""
+    path = get_project_root() / "fine_tuning.md"
+    if not path.exists() or not path.is_file():
+        abort(404)
+    return send_file(path, mimetype="text/markdown", as_attachment=False, download_name="fine_tuning.md")
+
+
 @app.route("/api/experiments", methods=["GET"])
 def list_experiments():
     root = get_experiments_root()
@@ -396,6 +405,48 @@ def serve_generated_img(name, filename):
     return send_file(path, mimetype=_dataset_image_mimetype(safe))
 
 
+@app.route("/api/experiments/<name>/finetune-command", methods=["GET"])
+def get_finetune_command(name):
+    """Build finetuning.py command for this experiment. Uses exp/<name>/result and exp/<name>/dataset."""
+    exp_base = _experiment_base(name)
+    if exp_base is None:
+        abort(404)
+    max_iter = request.args.get("max_iter", "").strip()
+    epochs = request.args.get("epochs", "").strip()
+    project_root = get_project_root()
+    out_path = (exp_base / "result").resolve()
+    dataset_path = (exp_base / "dataset").resolve()
+
+    def shell_escape(s):
+        if not s or " " in str(s) or "'" in str(s) or "\n" in str(s):
+            return "'" + str(s).replace("'", "'\"'\"'") + "'"
+        return str(s)
+
+    parts = [
+        "python",
+        shell_escape(str(project_root / "finetuning.py")),
+        "cfgs/finetune.yaml",
+        "--output_path", shell_escape(str(out_path)),
+        "--dataset_path", shell_escape(str(dataset_path)),
+    ]
+    if max_iter:
+        try:
+            parts.extend(["--max_iter", str(int(max_iter))])
+        except ValueError:
+            pass
+    if epochs:
+        try:
+            parts.extend(["--epochs", str(int(epochs))])
+        except ValueError:
+            pass
+    command = " ".join(parts)
+    return jsonify({
+        "command": command,
+        "output_path": str(out_path),
+        "dataset_path": str(dataset_path),
+    })
+
+
 @app.route("/api/experiments/<name>/generate-command", methods=["GET"])
 def get_generate_command(name):
     """Build model_comparsion.py command for given params. Ref path defaults to exp/<name>/dataset."""
@@ -578,11 +629,11 @@ def run_experiment():
 
     root = get_experiments_root()
     project_root = get_project_root()
-    # exp/<name>/result/<name>/ with checkpoints/ and images/ (see exp/README.md)
-    out_path = root / safe_name / "result" / safe_name
+    # exp/<name>/result/ (flat layout: checkpoints/, images/ under result)
+    out_path = root / safe_name / "result"
     out_path.mkdir(parents=True, exist_ok=True)
     (out_path / "checkpoints").mkdir(exist_ok=True)
-    (out_path / "dataset").mkdir(exist_ok=True)
+    (root / safe_name / "dataset").mkdir(parents=True, exist_ok=True)
 
     # Build display command (template when no dataset_path; full command if provided)
     def shell_escape(s):

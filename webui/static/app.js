@@ -140,6 +140,7 @@
       '<button type="button" class="tab-btn" data-tab="images">Images</button>' +
       '<button type="button" class="tab-btn" data-tab="generated_img">Generated</button>' +
       '<button type="button" class="tab-btn" data-tab="compare_gen_dataset">Compare</button>' +
+      '<button type="button" class="tab-btn" data-tab="finetune">Finetune</button>' +
       '<button type="button" class="tab-btn" data-tab="checkpoints">Checkpoints</button>';
 
     const logPanel = document.createElement("div");
@@ -188,7 +189,9 @@
       '<div class="form-row"><label for="genCheckpoint">Checkpoint</label><select id="genCheckpoint"></select></div>' +
       '<div class="form-row"><label class="gen-command-label">Command <button type="button" class="btn btn-small gen-copy-btn" id="genCopyBtn">Copy</button></label><pre id="genCommand" class="gen-command"></pre></div>' +
       '</div></div></div>' +
-      '<div class="generated-img-wrapper"><div class="img-grid dataset-grid" id="generatedImgGrid"></div><div id="generatedImgLoadMoreWrap" class="generated-load-more-wrap"></div></div>';
+      '<div class="generated-img-wrapper">' +
+      '<div class="generated-img-toolbar"><label class="generated-compact-label"><input type="checkbox" id="generatedCompactView"> Compact view (no labels, no gap)</label></div>' +
+      '<div class="img-grid dataset-grid" id="generatedImgGrid"></div><div id="generatedImgLoadMoreWrap" class="generated-load-more-wrap"></div></div>';
 
     const compareGenDatasetPanel = document.createElement("div");
     compareGenDatasetPanel.className = "tab-panel";
@@ -200,6 +203,20 @@
       '</div>' +
       '<div class="compare-gen-dataset-grid" id="compareGenDatasetGrid"></div>' +
       '<div id="compareGenDatasetLoadMore" class="generated-load-more-wrap"></div>';
+
+    const finetunePanel = document.createElement("div");
+    finetunePanel.className = "tab-panel";
+    finetunePanel.setAttribute("data-tab", "finetune");
+    finetunePanel.innerHTML =
+      '<div class="finetune-command-section generate-form">' +
+      '<p class="finetune-description">Run finetuning for this experiment. Dataset path points to this experiment\'s uploaded images.</p>' +
+      '<div class="finetune-options">' +
+      '<div class="form-row"><label for="finetuneMaxIter">max_iter (optional)</label><input type="number" id="finetuneMaxIter" placeholder="e.g. 5000" min="1"></div>' +
+      '<div class="form-row"><label for="finetuneEpochs">epochs (optional)</label><input type="number" id="finetuneEpochs" placeholder="e.g. 50" min="1"></div>' +
+      '</div>' +
+      '<div class="form-row"><label class="gen-command-label">Command <button type="button" class="btn btn-small gen-copy-btn" id="finetuneCopyBtn">Copy</button></label><pre id="finetuneCommand" class="gen-command finetune-command"></pre></div>' +
+      '<p class="finetune-hint">See <a href="/fine_tuning.md" target="_blank">fine_tuning.md</a> for full documentation.</p>' +
+      '</div>';
 
     const ckptPanel = document.createElement("div");
     ckptPanel.className = "tab-panel";
@@ -216,6 +233,7 @@
     getMain().appendChild(imgPanel);
     getMain().appendChild(generatedImgPanel);
     getMain().appendChild(compareGenDatasetPanel);
+    getMain().appendChild(finetunePanel);
     getMain().appendChild(ckptPanel);
 
     tabBar.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -232,11 +250,31 @@
         if (tab === "generated_img" && typeof populateGenForm === "function") {
           populateGenForm();
         }
+        if (tab === "generated_img") {
+          var generatedCompactCb = getMain().querySelector("#generatedCompactView");
+          if (generatedCompactCb) {
+            var grid = document.getElementById("generatedImgGrid");
+            if (grid) grid.classList.toggle("compact-view", generatedCompactCb.checked);
+          }
+        }
         if (tab === "compare_gen_dataset" && typeof loadCompareGenDataset === "function") {
           loadCompareGenDataset();
         }
+        if (tab === "finetune" && typeof updateFinetuneCommand === "function") {
+          updateFinetuneCommand();
+        }
       });
     });
+
+    (function () {
+      var generatedCompactCb = getMain().querySelector("#generatedCompactView");
+      if (generatedCompactCb) {
+        generatedCompactCb.addEventListener("change", function () {
+          var grid = document.getElementById("generatedImgGrid");
+          if (grid) grid.classList.toggle("compact-view", this.checked);
+        });
+      }
+    })();
 
     function loadStatus() {
       fetch(API + "/experiments/" + encodeURIComponent(name) + "/status")
@@ -645,6 +683,25 @@
         .catch(function () { pre.textContent = "(failed to load command)"; });
     }
 
+    function updateFinetuneCommand() {
+      var pre = document.getElementById("finetuneCommand");
+      var maxIterEl = document.getElementById("finetuneMaxIter");
+      var epochsEl = document.getElementById("finetuneEpochs");
+      if (!pre) return;
+      var maxIter = maxIterEl ? (maxIterEl.value || "").trim() : "";
+      var epochs = epochsEl ? (epochsEl.value || "").trim() : "";
+      var params = [];
+      if (maxIter) params.push("max_iter=" + encodeURIComponent(maxIter));
+      if (epochs) params.push("epochs=" + encodeURIComponent(epochs));
+      var q = params.length ? "?" + params.join("&") : "";
+      fetch(API + "/experiments/" + encodeURIComponent(name) + "/finetune-command" + q)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          pre.textContent = d.command || "(error)";
+        })
+        .catch(function () { pre.textContent = "(failed to load command)"; });
+    }
+
     function loadGeneratedImg() {
       fetch(API + "/experiments/" + encodeURIComponent(name) + "/generated_img")
         .then((r) => r.json())
@@ -885,6 +942,23 @@
           var orig = genCopyBtn.textContent;
           genCopyBtn.textContent = "Copied!";
           setTimeout(function () { genCopyBtn.textContent = orig; }, 1500);
+        }).catch(function () {});
+      });
+    }
+    ["finetuneMaxIter", "finetuneEpochs"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("input", updateFinetuneCommand);
+    });
+    var finetuneCopyBtn = document.getElementById("finetuneCopyBtn");
+    if (finetuneCopyBtn) {
+      finetuneCopyBtn.addEventListener("click", function () {
+        var pre = document.getElementById("finetuneCommand");
+        var text = pre ? pre.textContent : "";
+        if (!text || text.startsWith("(")) return;
+        navigator.clipboard.writeText(text).then(function () {
+          var orig = finetuneCopyBtn.textContent;
+          finetuneCopyBtn.textContent = "Copied!";
+          setTimeout(function () { finetuneCopyBtn.textContent = orig; }, 1500);
         }).catch(function () {});
       });
     }
